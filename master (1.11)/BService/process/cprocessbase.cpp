@@ -1,0 +1,70 @@
+#include "cprocessbase.h"
+#include "struct/cmsgnull.h"
+#include "struct/cmsgobjectstatus.h"
+#include "struct.h"
+#include "cglobal.h"
+
+#include <QDebug>
+
+CMsgNull* CProcessBase::m_msgNull = new CMsgNull();
+
+CProcessBase::CProcessBase(const QString &name) :
+    QObject(), m_name(name), m_timeOut(0)
+{
+}
+
+CProcessBase::~CProcessBase()
+{
+    qDebug("~CProcessBase");
+}
+
+void CProcessBase::recvEvent(const QString &processname, const int &infoType, const QHash<QString, QVariant> &control, const QByteArray &data)
+{
+    if(processname != m_name)
+        return;
+    procRecvEvent(infoType, control, data);
+}
+
+int CProcessBase::firstCardPort() const
+{
+    if(m_cardPorts.isEmpty())
+        return 0;
+    QSet<int>::const_iterator iter = m_cardPorts.constBegin();
+    return *iter;
+}
+
+
+//////////////
+///ntype 1:panel status
+/////////2:distribution status
+/////////3:power status
+/////////4:device status
+/////////5:loop status
+void CProcessBase::uploadStatus(int ntype, int nPanelID, int nDisID, int nLoopID, int nDeviceID, int nStatus, int nValue, int nTimes, QString strtext, int nLoginStatus, int nCommunicationStatus, QString strdata)
+{
+    qDebug() << "uploadStatus" << QDateTime::currentDateTime().toString("yyyy-MM-dd hh:mm:ss:zzz");
+    CMsgObjectStatus objectStatus;
+    objectStatus.nType = ntype;
+    objectStatus.nPanelID = nPanelID;
+    objectStatus.nDisID = nDisID;
+    objectStatus.nLoopID = nLoopID;
+    objectStatus.nDeviceID = nDeviceID;
+    objectStatus.nStatusID = nStatus;
+    objectStatus.nValue = nValue;
+    objectStatus.nTimes = nTimes;
+    objectStatus.strText = strtext;
+    objectStatus.nLoginStatus = nLoginStatus;
+    objectStatus.nCommunicationStatus = nCommunicationStatus;
+    objectStatus.strdata = strdata;
+    CGlobal::instance()->DealEvent(NCT_ObjectStatus, objectStatus.data(NCT_ObjectStatus));
+//    QString  data = " uploadStatus:  " + QString::number(nDisID) + "-" + QString::number(nLoopID) + "-" + QString::number(nDeviceID) + "-" +
+//            " statusID:" + QString::number(nStatus) + " value:" + QString::number(nValue) + " " + QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss:zzz");
+//    QFile file("/home/xfss/root/receiveupload.txt");
+
+//    if (file.open(QIODevice::Append | QIODevice::Text))
+//    {
+//        QTextStream stream(&file);
+//        stream << data << '\n' << '\n';
+//        file.close();
+//    }
+}

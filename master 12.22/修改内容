@@ -1,0 +1,34 @@
+2023.10.8
+1、删除了power/powermodel/processpower类
+2、删除了CFancyToolButton/CFancyTab/CMiniSplitterHandle/CEditInTableModel/CEditOutTableModel/CLayerAlarmPointTableModel/CDevicesFilterTableModel/CAlarmPointsFilterTableModel类
+   删除了CAlarmPointTableModel
+2023.10.12
+1、删除部分无用函数
+2、删除cmath中无用函数
+3、删除CGraphicsScene中多余函数
+4、删除CDirectionDelegate、ccheckboxdelegate
+5、删除CEvacuationGroup部分多余函数
+6、删除疏散预案ui函数
+2023.10.18
+1、删除了CPathBeelineItem、cpointalarmpointitem、cpointdeviceitem、cpointitem、cpathitem、dlgpath、CPathTableModel、cpath类
+2023.10.19
+1、删除CLayer的部分无用函数
+2、删除了cgraphicsitem、cgraphicsscene类
+3、删除CProgress、CTaProcess类
+4、删除cglobal、clayer部分函数
+2023.10.20
+1、删除了CEvacuationGroup类
+2023.10.30
+1、修复布局视图点击灯具可能弹不出控制列表的bug，修复应急时布局视图连接线异常的bug
+2023.11.2
+1、列表视图增加灯具数量统计
+2、上传亲台主机CanDeviceList  DeviceType改为  集中电源
+3、上传到云平台T  R节点修改
+2023.11.3
+1、修改主从通讯上传图片大小的bug，修改云平台相关逻辑
+2、增加启用/禁用灯具功能。
+2023.11.6
+1、启用/禁用灯具功能改为超级管理员可设置
+2、月年检下发指令由系统应急改为下发月年检指令
+2023.11.7
+1、修改云平台上传集中电源电参量，增加disconnect槽函数

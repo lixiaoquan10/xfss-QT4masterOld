@@ -1,0 +1,154 @@
+#include "deviceForbidFault.h"
+#include "dm/cproject.h"
+#include "dm/ccontroller.h"
+#include "dm/cdistribution.h"
+#include "dm/cloop.h"
+#include "dm/cdevice.h"
+#include "dialog/dlgdevices.h"
+#include "cglobal.h"
+#include "QDateTime"
+deviceForbidFault::deviceForbidFault()
+{
+    m_tRoot.m_sVersion = "1.00";
+    m_tRoot.m_sTime = QDateTime::currentDateTime().toString("yyyy-MM-dd HH:mm:ss:zzz");
+}
+bool deviceForbidFault::deviceForbidFile()//deviceForbidFault.xml文件并获取根节点
+{
+    QString sConfigFilePath;
+
+    sConfigFilePath = qApp->applicationDirPath() + "/../root/deviceForbidFault.xml" ;//in linux
+
+    QFile file(sConfigFilePath);
+    if (!file.open(QFile::ReadOnly))
+    {
+        return false;
+    }
+    QString errorStr;
+    int errorLine;
+    int errorColumn;
+    QDomDocument qDomConfigFile;
+    if (!qDomConfigFile.setContent(&file, false, &errorStr, &errorLine,&errorColumn))
+    {
+        return false;
+    }
+    QDomElement root = qDomConfigFile.documentElement();
+    QDomNode child = root.firstChild();
+    if (!child.isNull())
+    {
+        if(child.toElement().tagName() == "ROOT")
+        {
+            ParseROOT(&child);
+        }
+    }
+    file.close();
+    return true;
+}
+
+bool deviceForbidFault::saveDeviceForbidFile()
+{
+    QDomElement root = m_domDocSaveConfig.documentElement();
+    if(root.isNull())
+    {
+        root = m_domDocSaveConfig.createElement("xml");
+    }
+    SaveROOT(&root);
+    m_domDocSaveConfig.appendChild(root);
+
+    QString sFilePath = qApp->applicationDirPath() + "/../root/deviceForbidFault.xml";
+
+    QFile file(sFilePath);
+    if (!file.open(QFile::WriteOnly|QFile::Truncate | QFile::Text))//1.QFile::WriteOnly如果文件不存在，则创建；2.QFile::Truncate打开的同时清空
+    {
+        return false;
+    }
+    QTextStream stream( &file );
+    stream.setCodec("utf-8");
+    m_domDocSaveConfig.save(stream,4,QDomNode::EncodingFromTextStream);
+    file.close();
+    return true;
+}
+
+void deviceForbidFault::ParseROOT(QDomNode *node)//解析根节点
+{
+    m_tRoot.m_sVersion = node->toElement().attribute("version");
+    m_tRoot.m_sTime = node->toElement().attribute("time");
+    ParseBRANCH_LEVEL1(node);
+}
+
+void deviceForbidFault::ParseBRANCH_LEVEL1(QDomNode *node)//解析一级分支
+{
+    QDomNode childnode = node->toElement().firstChild();
+    while(!childnode.isNull())
+    {
+        if(childnode.toElement().tagName() == "ForbidDevice")
+        {
+            int distributionAddress = childnode.toElement().attribute("CAN").toInt();
+            int loopAddress = childnode.toElement().attribute("Loop").toInt();
+            int deviceAddress = childnode.toElement().attribute("Address").toInt();
+            CController* controller = CGlobal::instance()->project()->controllerById(CGlobal::instance()->panelAddress());
+            if(!controller)
+                return;
+            CDistribution* distribution = controller->distributionByAddress(distributionAddress);
+            if(distribution)
+            {
+                CLoop* loop = distribution->loopByAdd(loopAddress);
+                if(loop)
+                {
+                    CDevice* device = loop->deviceByAdd(deviceAddress);
+                    if(device)
+                    {
+                        device->setDeviceForbid(true);
+                    }
+                }
+            }
+        }
+        childnode = childnode.nextSibling();
+    }
+}
+
+
+void deviceForbidFault::SaveROOT(QDomNode *node)  //保存根节点
+{
+    QDomElement eldRoot = m_domDocSaveConfig.createElement("ROOT");
+    eldRoot.setAttribute("version",m_tRoot.m_sVersion);
+    eldRoot.setAttribute("time",m_tRoot.m_sTime);
+    CController* controller = CGlobal::instance()->project()->controllerById(CGlobal::instance()->panelAddress());
+    if(!controller)
+        return;
+    QList<CDistribution*> distributions = controller->distributions();
+    for(int i=0; i<distributions.count(); i++){
+        CDistribution* distribution = distributions.at(i);
+        if(distribution){
+            QList<CLoop*> loops = distribution->loops();
+            for(int i=0; i<loops.count(); i++){
+                CLoop* loop = loops.at(i);
+                if(loop){
+                    QList<CDevice*> devices = loop->devices();
+                    for(int m=0; m<devices.count(); m++){
+                        CDevice* device = devices.at(m);
+                        if(device)
+                        {
+                            if(device->isDeviceForbid())
+                                SaveBranchLevel1(&eldRoot,device);
+                        }
+                    }
+                    devices.clear();
+                }
+            }
+            loops.clear();
+        }
+    }
+    distributions.clear();
+    node->appendChild(eldRoot);
+}
+
+
+void deviceForbidFault::SaveBranchLevel1(QDomElement *parentNode, CDevice* device)   //保存一级分支
+{
+    QDomElement eleBranchLV1 = m_domDocSaveConfig.createElement("ForbidDevice");
+    eleBranchLV1.setAttribute("CAN",device->deviceValue(DEVICE_VALUE_DISTRIBUTIONADDR).toInt());
+    eleBranchLV1.setAttribute("Loop",device->deviceValue(DEVICE_VALUE_LOOPADDR).toInt());
+    eleBranchLV1.setAttribute("Address",device->deviceAdd());
+    parentNode->appendChild(eleBranchLV1);
+}
+

@@ -1,0 +1,70 @@
+1、本版本setvalue除了project全部修改完成，setstatus（online，*）修改为set*value（OBJECT_VALUE_ONLINE,*）;
+另外，device设置online时加入了数量增减
+2、修复slotcheckLoginInfo中灯具故障判断bug，有故障了就不再重复报故障
+3、修改集中电源、回路、灯具状态复位，集中电源故障时故障列表不显示灯具故障。
+
+4、修改dlgdevices页面数量个数，只显示13条，增加页面选择进度条；简介解决了收不到故障数据问题，可能是灯具数据一直在刷新导致收不到数据
+
+
+5、修改应急部分指令，集中电源应急时应急列表不显示灯具应急，灯具通讯故障时不显示应急。
+     集中电源、回路故障时，故障页面显示      通讯故障（所属回路、灯具通讯故障）、通讯故障（所属灯具通讯故障）
+
+
+待处理：1、单灯控制（应急、测试），全局复位无法复位单灯；考虑保存一个global的statuslist   或者保存一个文件
+             2、清除注册部分
+             3、主机IP地址设置
+             4、增加火警点数据
+
+6、解决  清除注册部分、注册部分、应急部分
+
+
+待处理：1、单灯控制（应急、测试），全局复位无法复位单灯；考虑保存一个global的statuslist   或者保存一个文件
+             2、主机IP地址设置
+             3、增加火警点数据
+
+
+7、解决注册表问题
+
+待处理：1、单灯控制（应急、测试），全局复位无法复位单灯；考虑保存一个global的statuslist   或者保存一个文件
+             2、主机IP地址设置
+             3、增加火警点数据
+
+8、增加了CANport2的通讯
+
+待处理：1、单灯控制（应急、测试），全局复位无法复位单灯；考虑保存一个global的statuslist   或者保存一个文件
+             2、主机IP地址设置
+             3、增加火警点数据
+             4、增加canportID参数，3/4/5/6
+
+9、修复getDeviceCommunicationFault的回路地址未改为deviceValue导致loop为空；
+     修复保存灯具到数据库时saveDevice中deviceValue(DEVICE_VALUE_ISUSED)没有改过来
+待处理：1、单灯控制（应急、测试），全局复位无法复位单灯；考虑保存一个global的statuslist   或者保存一个文件
+             2、主机IP地址设置
+             3、增加火警点数据
+             4、增加canportID参数，3/4/5/6
+
+10、修改controller为canport
+待处理：1、单灯控制（应急、测试），全局复位无法复位单灯；考虑保存一个global的statuslist   或者保存一个文件
+             2、主机IP地址设置
+             3、增加火警点数据
+             4、增加canportID参数，3/4/5/6
+
+11、修改controller文件名称为canport，修改设备图标
+待处理：1、单灯控制（应急、测试），全局复位无法复位单灯；考虑保存一个global的statuslist   或者保存一个文件
+             2、主机IP地址设置
+             3、增加火警点数据
+             4、增加canportID参数，3/4/5/6
+             5、project未修改
+
+12、修改project为controller
+待处理：1、单灯控制（应急、测试），全局复位无法复位单灯；考虑保存一个global的statuslist   或者保存一个文件
+             2、主机IP地址设置
+             3、增加火警点数据
+             4、增加canportID参数，3/4/5/6
+
+13、修改project相关文件名称为controller
+待处理：1、单灯控制（应急、测试），全局复位无法复位单灯；考虑保存一个global的statuslist   或者保存一个文件
+             2、主机IP地址设置
+             3、增加火警点数据
+             4、增加canportID参数，3/4/5/6
+

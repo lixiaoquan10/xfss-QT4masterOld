@@ -1,0 +1,4 @@
+1、本版本setvalue除了project全部修改完成，setstatus（online，*）修改为set*value（OBJECT_VALUE_ONLINE,*）;
+另外，device设置online时加入了数量增减
+2、修复slotcheckLoginInfo中灯具故障判断bug，有故障了就不再重复报故障
+3、修改集中电源、回路、灯具状态复位，集中电源故障时故障列表不显示灯具故障。

@@ -1,0 +1,2 @@
+本版本setvalue除了project全部修改完成，setstatus（online，*）修改为set*value（OBJECT_VALUE_ONLINE,*）;
+另外，device设置online时加入了数量增减

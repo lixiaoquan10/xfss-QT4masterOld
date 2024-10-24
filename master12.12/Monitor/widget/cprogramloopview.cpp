@@ -1,0 +1,439 @@
+﻿#include "cprogramloopview.h"
+#include "ui_cprogramloopview.h"
+#include "cglobal.h"
+#include "dm/cproject.h"
+#include "dm/ccontroller.h"
+#include "dm/cdistribution.h"
+#include "dm/cloop.h"
+#include "business/cclientbusiness.h"
+#include "model/cdistributionmodel.h"
+#include "style/cstyledbar.h"
+#include "view/ctableview.h"
+
+#include <QMessageBox>
+#include <QToolButton>
+#include <QDebug>
+#include <QSortFilterProxyModel>
+
+CProgramLoopView::CProgramLoopView(QWidget *parent) :
+    QWidget(parent), ui(new Ui::CProgramLoopView)
+{
+    ui->setupUi(this);
+    CGlobal::instance()->setProgramLoopView(this);
+    m_distributionAddress = 1;
+
+    m_model = new CDistributionModel();
+    ui->tableView->setModel(m_model);
+    ui->tableView->setSelectionBehavior(QAbstractItemView::SelectRows);
+    ui->tableView->setColumnWidth(DISTRIBUTION_COLUMN_ADDRESS, 40);
+    ui->tableView->setColumnWidth(DISTRIBUTION_COLUMN_NAME, 200);
+    ui->tableView->setColumnWidth(DISTRIBUTION_COLUMN_DESCRIPTION, 150);
+    ui->tableView->setColumnWidth(DISTRIBUTION_COLUMN_AREA, 220);
+    ui->tableView->setColumnWidth(DISTRIBUTION_COLUMN_LOCATION, 220);
+    ui->tableView->horizontalHeader()->setStretchLastSection(true);
+
+    //定时10s查询集中电源运行参数
+    m_timer = new QTimer();
+    connect(m_timer, SIGNAL(timeout()), this, SLOT(readPowerInfo()));
+    m_timer->start(10000);
+    //定时1s更新集中电源运行状态
+    m_timerUpdateStatus = new QTimer();
+    connect(m_timerUpdateStatus, SIGNAL(timeout()), this, SLOT(updateStatus()));
+    m_timerUpdateStatus->start(1000);
+}
+
+CProgramLoopView::~CProgramLoopView()
+{
+    CGlobal::instance()->setProgramLoopView(0);
+    delete ui;
+    delete m_timer;
+    delete m_timerUpdateStatus;
+}
+
+void CProgramLoopView::updateDistribution()
+{
+    ui->comboBox_canAddress->clear();
+    CController* controller = CGlobal::instance()->project()->controllerById(CGlobal::instance()->panelAddress());
+    if(controller)
+    {
+        QList<CDistribution*> distributions = controller->distributions();
+        ui->label_canNumberText->setText(QString::number(distributions.count()));
+        for(int i=0; i<distributions.count(); i++)
+        {
+            CDistribution* distribution = distributions.at(i);
+            if(distribution)
+            {
+                ui->comboBox_canAddress->addItem(QString::number(distribution->distributionAddress()));
+            }
+//            // 获取QComboBox的数据模型
+//            QAbstractItemModel* model = ui->comboBox_canAddress->model();
+
+//            // 创建QSortFilterProxyModel并设置源模型为QComboBox的数据模型
+//            QSortFilterProxyModel* proxyModel = new QSortFilterProxyModel;
+//            proxyModel->setSourceModel(model);
+
+//            // 设置排序规则为按照数字大小进行排序
+//            proxyModel->setSortRole(Qt::UserRole);  // 使用Qt::UserRole作为排序依据
+//            proxyModel->sort(0, Qt::AscendingOrder);  // 升序排序
+
+//            // 设置QComboBox的模型为排序后的模型
+//            ui->comboBox_canAddress->setModel(proxyModel);
+        }
+        distributions.clear();
+    }
+    ui->comboBox_canAddress->setCurrentIndex(0);
+}
+
+//定时10s查询集中电源运行参数/读取保护参数
+void CProgramLoopView::readPowerInfo()
+{
+    if(CGlobal::instance()->m_bInLogin == true)
+        return;
+    CController* controller = CGlobal::instance()->project()->controllerById(CGlobal::instance()->panelAddress());
+    CMsgLoginData cmsglogindata;
+    CMsgObjectStatus msgObjectStatus;
+    if(controller)
+    {
+        QList<CDistribution*> distributions = controller->distributions();
+        for(int i=0; i<distributions.count(); i++)
+        {
+            CDistribution* distribution = distributions.at(i);
+            if(distribution && distribution->value(DISTRIBUTION_PORT_ID).toInt())
+            {
+                cmsglogindata.nDistributeID = distribution->distributionAddress();
+                msgObjectStatus.nDisID = distribution->distributionAddress();
+                //读运行参数
+                CGlobal::instance()->ClientBusiness()->exeCommand(NCT_PowerInfo,&msgObjectStatus);
+            }
+        }
+        distributions.clear();
+    }
+}
+
+
+void CProgramLoopView::setDistribution(CDistribution *distribution)
+{
+    ui->label_canNameText->setText(distribution->value(DISTRIBUTION_VALUE_NAME).toString());
+    ui->label_productIDText->setText(distribution->value(DISTRIBUTION_VALUE_DESCRIPTION).toString());
+    ui->label_canAreaText->setText(distribution->value(DISTRIBUTION_VALUE_AREA).toString());
+    ui->label_canLocationText->setText(distribution->value(DISTRIBUTION_VALUE_LOCATION).toString());
+    setDistributionStatus(distribution);
+    setDistributionParameter(distribution);
+    setLoopStatus(distribution->getloopCommunication(),distribution->getloopOpen());
+    qDebug() << distribution->getoutA() << distribution->getlightswitch() << distribution->getCANfaultswitch() << distribution->getlinkageswitch()
+             << distribution->getpowermode() << distribution->getfiretime() << distribution->getunfiretime();
+    update();
+}
+
+void CProgramLoopView::updateStatus()
+{
+    CController* controller = CGlobal::instance()->project()->controllerById(CGlobal::instance()->panelAddress());
+    if(!controller)
+        return;
+    CDistribution* distribution = controller->distributionByAddress(m_distributionAddress);
+    if(distribution)
+    {
+        setDistributionStatus(distribution);
+        setDistributionParameter(distribution);
+        setLoopStatus(distribution->getloopCommunication(),distribution->getloopOpen());
+        update();
+    }
+}
+//集中电源状态更新
+void CProgramLoopView::setDistributionStatus(CDistribution *distribution)
+{
+    if(distribution->getmainPowerFault())
+    {
+        ui->m_mainpower->setStyleSheet("background-color:rgb(255,255,0)");
+        ui->m_mainpower->setText("故障");
+    }
+    else
+    {
+        ui->m_mainpower->setStyleSheet("background-color:rgb(0, 255, 0)");
+        ui->m_mainpower->setText("正常");
+    }
+    if(distribution->getbackupPowerFault())
+    {
+        ui->m_backuppower->setStyleSheet("background-color:rgb(255,255,0)");
+        ui->m_backuppower->setText("故障");
+    }
+    else
+    {
+        ui->m_backuppower->setStyleSheet("background-color:rgb(0, 255, 0)");
+        ui->m_backuppower->setText("正常");
+    }
+    if(distribution->getoverOut())
+    {
+        ui->m_overload->setStyleSheet("background-color:rgb(255,255,0)");
+        ui->m_overload->setText("故障");
+    }
+    else
+    {
+        ui->m_overload->setStyleSheet("background-color:rgb(0, 255, 0)");
+        ui->m_overload->setText("正常");
+    }
+    if(distribution->getoutOpen())
+    {
+        ui->m_openload->setStyleSheet("background-color:rgb(255,255,0)");
+        ui->m_openload->setText("故障");
+    }
+    else
+    {
+        ui->m_openload->setStyleSheet("background-color:rgb(0, 255, 0)");
+        ui->m_openload->setText("正常");
+    }
+    if(distribution->getchargeStatus())
+    {
+        ui->m_chargestatus->setStyleSheet("background-color:rgb(255, 0, 0)");
+        ui->m_chargestatus->setText("充电");
+    }
+    else
+    {
+        ui->m_chargestatus->setStyleSheet("background-color:rgb(0, 255, 0)");
+        ui->m_chargestatus->setText("未充电");
+    }
+    if(distribution->getemergencyStatus())
+    {
+        ui->m_emergency->setStyleSheet("background-color:rgb(255, 0, 0)");
+        ui->m_emergency->setText("应急");
+    }
+    else
+    {
+        ui->m_emergency->setStyleSheet("background-color:rgb(0, 255, 0)");
+        ui->m_emergency->setText("正常");
+    }
+    if(distribution->get36vOut())
+    {
+        ui->m_out36v->setStyleSheet("background-color:rgb(255,255,0)");
+        ui->m_out36v->setText("故障");
+    }
+    else
+    {
+        ui->m_out36v->setStyleSheet("background-color:rgb(0, 255, 0)");
+        ui->m_out36v->setText("正常");
+    }
+    if(distribution->getsystemFault())
+    {
+        ui->m_systemfault->setStyleSheet("background-color:rgb(255,255,0)");
+        ui->m_systemfault->setText("故障");
+    }
+    else
+    {
+        ui->m_systemfault->setStyleSheet("background-color:rgb(0, 255, 0)");
+        ui->m_systemfault->setText("正常");
+    }
+    if(distribution->getrunMode())
+    {
+        ui->m_runmode->setStyleSheet("background-color:rgb(255, 0, 0)");
+        ui->m_runmode->setText("手动");
+    }
+    else
+    {
+        ui->m_runmode->setStyleSheet("background-color:rgb(0, 255, 0)");
+        ui->m_runmode->setText("自动");
+    }
+    if(distribution->getoverDischargeFault())
+    {
+        ui->m_overdischarge->setStyleSheet("background-color:rgb(255,255,0)");
+        ui->m_overdischarge->setText("故障");
+    }
+    else
+    {
+        ui->m_overdischarge->setStyleSheet("background-color:rgb(0, 255, 0)");
+        ui->m_overdischarge->setText("正常");
+    }
+    if(distribution->getbatUndervoltage())
+    {
+        ui->m_undervoltage->setStyleSheet("background-color:rgb(255,255,0)");
+        ui->m_undervoltage->setText("故障");
+    }
+    else
+    {
+        ui->m_undervoltage->setStyleSheet("background-color:rgb(0, 255, 0)");
+        ui->m_undervoltage->setText("正常");
+    }
+    if(distribution->getbatOverheating())
+    {
+        ui->m_overheat->setStyleSheet("background-color:rgb(255,255,0)");
+        ui->m_overheat->setText("故障");
+    }
+    else
+    {
+        ui->m_overheat->setStyleSheet("background-color:rgb(0, 255, 0)");
+        ui->m_overheat->setText("正常");
+    }
+}
+
+//集中电源电参量更新
+void CProgramLoopView::setDistributionParameter(CDistribution *distribution)
+{
+    CLoop* loop;
+    ui->m_mainpowerV->setText(distribution->value(DISTRIBUTION_VALUE_MAINV).toString() + "V");
+    ui->m_outpowerV->setText(distribution->value(DISTRIBUTION_VALUE_OUTV).toString() + "V");
+    ui->m_outpowerA->setText(distribution->value(DISTRIBUTION_VALUE_OUTA).toString() + "A");
+    ui->m_lightV->setText(distribution->value(DISTRIBUTION_VALUE_EXTERNALV).toString() + "V");
+    ui->m_battery1V->setText(distribution->value(DISTRIBUTION_VALUE_BAT1V).toString() + "V");
+    ui->m_battery2V->setText(distribution->value(DISTRIBUTION_VALUE_BAT2V).toString() + "V");
+    ui->m_battery3V->setText(distribution->value(DISTRIBUTION_VALUE_BAT3V).toString() + "V");
+    ui->m_batteryV->setText(distribution->value(DISTRIBUTION_VALUE_BATV).toString() + "V");
+
+    ui->m_battery1T->setText(batteryTStatus(distribution->value(DISTRIBUTION_VALUE_BAT1T).toInt()));
+    ui->m_battery2T->setText(batteryTStatus(distribution->value(DISTRIBUTION_VALUE_BAT2T).toInt()));
+    ui->m_battery3T->setText(batteryTStatus(distribution->value(DISTRIBUTION_VALUE_BAT3T).toInt()));
+
+    loop = distribution->loopByAdd(1);
+    if(loop){
+        ui->m_loop1V->setText(loop->value(LOOP_VALUE_V).toString() + "V");
+        ui->m_loop1A->setText(loop->value(LOOP_VALUE_A).toString() + "A");
+    }
+    loop = distribution->loopByAdd(2);
+    if(loop){
+        ui->m_loop2V->setText(loop->value(LOOP_VALUE_V).toString() + "V");
+        ui->m_loop2A->setText(loop->value(LOOP_VALUE_A).toString() + "A");
+    }
+    loop = distribution->loopByAdd(3);
+    if(loop){
+        ui->m_loop3V->setText(loop->value(LOOP_VALUE_V).toString() + "V");
+        ui->m_loop3A->setText(loop->value(LOOP_VALUE_A).toString() + "A");
+    }
+    loop = distribution->loopByAdd(4);
+    if(loop){
+        ui->m_loop4V->setText(loop->value(LOOP_VALUE_V).toString() + "V");
+        ui->m_loop4A->setText(loop->value(LOOP_VALUE_A).toString() + "A");
+    }
+    loop = distribution->loopByAdd(5);
+    if(loop){
+        ui->m_loop5V->setText(loop->value(LOOP_VALUE_V).toString() + "V");
+        ui->m_loop5A->setText(loop->value(LOOP_VALUE_A).toString() + "A");
+    }
+    loop = distribution->loopByAdd(6);
+    if(loop){
+        ui->m_loop6V->setText(loop->value(LOOP_VALUE_V).toString() + "V");
+        ui->m_loop6A->setText(loop->value(LOOP_VALUE_A).toString() + "A");
+    }
+    loop = distribution->loopByAdd(7);
+    if(loop){
+        ui->m_loop7V->setText(loop->value(LOOP_VALUE_V).toString() + "V");
+        ui->m_loop7A->setText(loop->value(LOOP_VALUE_A).toString() + "A");
+    }
+    loop = distribution->loopByAdd(8);
+    if(loop){
+        ui->m_loop8V->setText(loop->value(LOOP_VALUE_V).toString() + "V");
+        ui->m_loop8A->setText(loop->value(LOOP_VALUE_A).toString() + "A");
+    }
+
+
+
+}
+
+QString CProgramLoopView::batteryTStatus(u_int16_t t)
+{
+    // 将无符号整数转换为有符号整数
+    int16_t signedValue = static_cast<int16_t>(t);
+
+    // 如果值为负数，则计算绝对值并取反
+    if (signedValue < 0) {
+        signedValue = -signedValue;
+        signedValue = ~signedValue + 1;   //得到转换后温度值（负数的绝对值）
+
+        if(signedValue == -3000)  //未开启温度检测
+            return "无";
+        else if(signedValue == -200)  //温度检测断线
+            return "断线";
+        else if(signedValue == -100)  //温度检测短路
+            return "短路";
+        else                    //温度为零下
+            return QString::number(signedValue);
+    }
+    else
+    {
+        return QString::number(signedValue);
+    }
+}
+
+//回路通讯、回路开路状态  loopCommunication代表通讯，loopOpen代表开路
+void CProgramLoopView::setLoopStatus(int loopCommunication, int loopOpen)
+{
+    if(loopCommunication & 0x01)
+        ui->m_loopc1->setStyleSheet("background-color:rgb(255,255,0)");
+    else
+        ui->m_loopc1->setStyleSheet("background-color:rgb(0, 255, 0)");
+    if(loopCommunication & 0x02)
+        ui->m_loopc2->setStyleSheet("background-color:rgb(255,255,0)");
+    else
+        ui->m_loopc2->setStyleSheet("background-color:rgb(0, 255, 0)");
+    if(loopCommunication & 0x04)
+        ui->m_loopc3->setStyleSheet("background-color:rgb(255,255,0)");
+    else
+        ui->m_loopc3->setStyleSheet("background-color:rgb(0, 255, 0)");
+    if(loopCommunication & 0x08)
+        ui->m_loopc4->setStyleSheet("background-color:rgb(255,255,0)");
+    else
+        ui->m_loopc4->setStyleSheet("background-color:rgb(0, 255, 0)");
+    if(loopCommunication & 0x10)
+        ui->m_loopc5->setStyleSheet("background-color:rgb(255,255,0)");
+    else
+        ui->m_loopc5->setStyleSheet("background-color:rgb(0, 255, 0)");
+    if(loopCommunication & 0x20)
+        ui->m_loopc6->setStyleSheet("background-color:rgb(255,255,0)");
+    else
+        ui->m_loopc6->setStyleSheet("background-color:rgb(0, 255, 0)");
+    if(loopCommunication & 0x40)
+        ui->m_loopc7->setStyleSheet("background-color:rgb(255,255,0)");
+    else
+        ui->m_loopc7->setStyleSheet("background-color:rgb(0, 255, 0)");
+    if(loopCommunication & 0x80)
+        ui->m_loopc8->setStyleSheet("background-color:rgb(255,255,0)");
+    else
+        ui->m_loopc8->setStyleSheet("background-color:rgb(0, 255, 0)");
+    if(loopOpen & 0x01)
+        ui->m_loopo1->setStyleSheet("background-color:rgb(255,255,0)");
+    else
+        ui->m_loopo1->setStyleSheet("background-color:rgb(0, 255, 0)");
+    if(loopOpen & 0x02)
+        ui->m_loopo2->setStyleSheet("background-color:rgb(255,255,0)");
+    else
+        ui->m_loopo2->setStyleSheet("background-color:rgb(0, 255, 0)");
+    if(loopOpen & 0x04)
+        ui->m_loopo3->setStyleSheet("background-color:rgb(255,255,0)");
+    else
+        ui->m_loopo3->setStyleSheet("background-color:rgb(0, 255, 0)");
+    if(loopOpen & 0x08)
+        ui->m_loopo4->setStyleSheet("background-color:rgb(255,255,0)");
+    else
+        ui->m_loopo4->setStyleSheet("background-color:rgb(0, 255, 0)");
+    if(loopOpen & 0x10)
+        ui->m_loopo5->setStyleSheet("background-color:rgb(255,255,0)");
+    else
+        ui->m_loopo5->setStyleSheet("background-color:rgb(0, 255, 0)");
+    if(loopOpen & 0x20)
+        ui->m_loopo6->setStyleSheet("background-color:rgb(255,255,0)");
+    else
+        ui->m_loopo6->setStyleSheet("background-color:rgb(0, 255, 0)");
+    if(loopOpen & 0x40)
+        ui->m_loopo7->setStyleSheet("background-color:rgb(255,255,0)");
+    else
+        ui->m_loopo7->setStyleSheet("background-color:rgb(0, 255, 0)");
+    if(loopOpen & 0x80)
+        ui->m_loopo8->setStyleSheet("background-color:rgb(255,255,0)");
+    else
+        ui->m_loopo8->setStyleSheet("background-color:rgb(0, 255, 0)");
+}
+
+
+
+
+void CProgramLoopView::on_comboBox_canAddress_currentIndexChanged(int index)
+{
+    Q_UNUSED(index);
+    m_distributionAddress = ui->comboBox_canAddress->currentText().toInt();
+    if(m_distributionAddress)
+    {
+        CController* controller = CGlobal::instance()->project()->controllerById(CGlobal::instance()->panelAddress());
+        if(!controller)
+            return;
+        CDistribution* distribution = controller->distributionByAddress(m_distributionAddress);
+        if(distribution)
+            setDistribution(distribution);
+    }
+}
