@@ -1,0 +1,7 @@
+<RCC>
+    <qresource prefix="/translation">
+        <file alias="monitor_CN">translations/Monitor_zh_CN.qm</file>
+        <file alias="qt">translations/qt.qm</file>
+        <file alias="qt_CN">translations/qt_zh_CN.qm</file>
+    </qresource>
+</RCC>
