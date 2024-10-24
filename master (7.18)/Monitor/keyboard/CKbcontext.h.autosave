@@ -1,0 +1,31 @@
+#ifndef DISP_INPUT_H
+#define DISP_INPUT_H
+
+#include <QObject>
+#include <QtGui/QInputContext>
+#include "mykeyboard.h"
+
+class MyKBContext : public QInputContext
+{
+    Q_OBJECT
+public:
+    MyKBContext();
+    bool filterEvent(const QEvent *event);
+    QString identifierName();
+    QString language();
+
+    bool isComposing() const;
+    void reset();
+
+private slots:
+    void sendCharacter(quint32 character);
+    void sendChinese(QString text);
+private:
+    CKeyboard *disp_inputkey;
+    void updatePosition();
+};
+
+
+
+#endif // DISP_INPUT_H
+
