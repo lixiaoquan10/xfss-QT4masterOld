@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/">
+        <file>info.png</file>
+        <file>BService_zh_CN.qm</file>
+    </qresource>
+</RCC>
